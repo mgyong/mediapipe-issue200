@@ -7,12 +7,14 @@ Related to MediaPipe [github issue 200](https://github.com/google/mediapipe/issu
 https://gist.github.com/mgyong/7353474eb3e57ba95621632af274911a
 https://gist.github.com/mgyong/be027a075a5e7b082c566a78c3bc0d90
 
-To build this 
+1. Need to set NDK SDK to your path
+
+2. To build this 
 ```bash
 bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 mediapipe/examples/desktop/object_detection:object_detection_out_cpu 
 ```
 
-To run object detection example
+3. To run object detection example
 ```bash
 bazel-bin/mediapipe/examples/desktop/object_detection/object_detection_out_cpu --calculator_graph_config_file=mediapipe/graphs/object_detection/object_detection_desktop_live.pbtxt
 
