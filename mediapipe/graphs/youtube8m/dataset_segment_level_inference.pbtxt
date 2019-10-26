@@ -1,0 +1,110 @@
+node {
+  calculator: "StringToIntCalculator"
+  input_side_packet: "record_index_str"
+  output_side_packet: "record_index"
+}
+
+node {
+  calculator: "TFRecordReaderCalculator"
+  input_side_packet: "TFRECORD_PATH:tfrecord_path"
+  input_side_packet: "RECORD_INDEX:record_index"
+  output_side_packet: "SEQUENCE_EXAMPLE:yt8m_sequence_example"
+}
+
+node {
+  calculator: "UnpackYt8mSequenceExampleCalculator"
+  input_side_packet: "YT8M_SEQUENCE_EXAMPLE:yt8m_sequence_example"
+  output_side_packet: "YT8M_ID:yt8m_id"
+  output_stream: "QUANTIZED_RGB_FEATURE:quantized_rgb_feature"
+  output_stream: "QUANTIZED_AUDIO_FEATURE:quantized_audio_feature"
+}
+
+node {
+  calculator: "DequantizeByteArrayCalculator"
+  input_stream: "ENCODED:quantized_rgb_feature"
+  output_stream: "FLOAT_VECTOR:rgb_feature_vector"
+  node_options: {
+    [type.googleapis.com/mediapipe.DequantizeByteArrayCalculatorOptions]: {
+      max_quantized_value: 2
+      min_quantized_value: -2
+    }
+  }
+}
+
+node {
+  calculator: "DequantizeByteArrayCalculator"
+  input_stream: "ENCODED:quantized_audio_feature"
+  output_stream: "FLOAT_VECTOR:audio_feature_vector"
+  node_options: {
+    [type.googleapis.com/mediapipe.DequantizeByteArrayCalculatorOptions]: {
+      max_quantized_value: 2
+      min_quantized_value: -2
+    }
+  }
+}
+
+node {
+  calculator: "ConcatenateFloatVectorCalculator"
+  input_stream: "rgb_feature_vector"
+  input_stream: "audio_feature_vector"
+  output_stream: "feature_vector"
+}
+
+node {
+  calculator: "VectorFloatToTensorCalculator"
+  input_stream: "feature_vector"
+  output_stream: "feature_tensor"
+}
+
+node {
+  calculator: "LappedTensorBufferCalculator"
+  input_stream: "feature_tensor"
+  output_stream: "lapped_feature_tensor"
+  node_options: {
+    [type.googleapis.com/mediapipe.LappedTensorBufferCalculatorOptions] {
+      buffer_size: 5
+      overlap: 4
+      add_batch_dim_to_tensors: true
+    }
+  }
+}
+
+node {
+  calculator: "TensorFlowSessionFromSavedModelCalculator"
+  output_side_packet: "SESSION:session"
+  node_options: {
+    [type.googleapis.com/mediapipe.TensorFlowSessionFromSavedModelCalculatorOptions]: {
+      saved_model_path: "/tmp/mediapipe/yt8m_segment_saved_model"
+    }
+  }
+}
+
+node: {
+  calculator: "TensorFlowInferenceCalculator"
+  input_side_packet: "SESSION:session"
+  input_stream: "RGB_AND_AUDIO:lapped_feature_tensor"
+  output_stream: "PREDICTIONS:prediction_tensor"
+  node_options: {
+    [type.googleapis.com/mediapipe.TensorFlowInferenceCalculatorOptions]: {
+      batch_size: 32
+    }
+  }
+}
+
+node {
+  calculator: "TensorToVectorFloatCalculator"
+  input_stream: "prediction_tensor"
+  output_stream: "prediction_vector"
+}
+
+node {
+  calculator: "TopKScoresCalculator"
+  input_stream: "SCORES:prediction_vector"
+  output_stream: "SUMMARY:annotation_summary"
+  node_options: {
+    [type.googleapis.com/mediapipe.TopKScoresCalculatorOptions]: {
+      top_k: 3
+      label_map_path: "mediapipe/graphs/youtube8m/label_map.txt"
+    }
+  }
+}
